@@ -1,0 +1,124 @@
+#!/usr/bin/python3
+
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation
+# files (the "Software"), to deal in the Software without
+# restriction, including without limitation the rights to use,
+# copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+# EXAMPLE USAGE: 
+# setup layouts: keyboard-layout --setup 'us ch(de)'
+# switch to next layout: keyboard-layout
+
+from os.path import expanduser
+from subprocess import Popen, PIPE
+from argparse import ArgumentParser
+#import cProfile
+
+def get_layouts_file_path():
+	return expanduser('~/.keyboard_layout')
+
+def save_used_layouts(layouts, path):
+	str_layouts = '\n'.join(layouts)
+	try:
+		with open(path, 'wt') as f:
+			f.write(str_layouts)
+	except IOError:
+		print('Error occured while saving used layout names')
+		exit(1)
+
+
+def load_used_layouts(path):
+	try:
+		with open(path, 'rt') as f:
+			layouts = f.read()
+			layouts = layouts.split('\n')
+			return layouts
+	except IOError:
+		print('Error occured while loading used layout names')
+		exit(1)
+
+
+def parse_used_layouts_arg(arg):
+	if(len(arg) == 1):
+		layouts_str = arg[0]
+		layouts_str = layouts_str.replace("'", "")
+		layouts_str = layouts_str.replace('"', '')
+		layouts = layouts_str.split(' ')
+		return layouts
+	return arg
+
+
+def load_current_layout():
+	p = Popen(['setxkbmap', '-query'], stdout=PIPE)
+	out, err = p.communicate()
+	if p.returncode != 0:
+		print('Error while querying current layout (setxkbmap -query returns {})'.format(p.returncode))
+		exit(p.returncode)
+	out = str(out.decode('utf-8'))
+	search_string = 'layout:'
+	indx = out.find(search_string)
+	layout = out[indx + len(search_string):]
+	layout = layout.replace(' ', '')
+	layout = layout.replace('\n', '')
+	layout = layout.replace('"', '')
+	layout = layout.replace("'", '')
+	layout = layout.split(',')[0]
+	return layout
+
+
+def setup(layouts_args):
+	layouts = parse_used_layouts_arg(layouts_args)
+	if not layouts:
+		print('No layouts was specified. See keyboard_layout --help')
+		return
+	save_used_layouts(layouts, get_layouts_file_path())
+
+
+def switch_layout():
+	used_layouts = load_used_layouts(get_layouts_file_path())
+	if not used_layouts:
+		print('Used layouts are not specified. See keyboard_layout --help')
+		return
+	cur_layout = load_current_layout()
+	if cur_layout not in used_layouts:
+		next_layout = used_layouts[0]
+	else:
+		indx = used_layouts.index(cur_layout) + 1
+		if indx >= len(used_layouts):
+			indx = 0
+		next_layout = used_layouts[indx]
+	print(next_layout)
+	Popen(['setxkbmap', "'{}'".format(next_layout)])
+	
+def main():
+	parser = ArgumentParser(description='Keyboard layout switcher')
+	parser.add_argument('--setup', help='setup used layouts', metavar='LAYOUT', action='store', nargs='+', type=str)
+	parser.add_argument('--switch', help='switch layout (by default)', action='store_true', default=True)
+
+	parsed = parser.parse_args()
+
+	if parsed.setup:
+		setup(parsed.setup)
+	elif parsed.switch:
+		switch_layout()
+
+
+#cProfile.run('main()')
+main()
+
+from os import _exit
+_exit(0)
