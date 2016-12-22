@@ -119,6 +119,3 @@ def main():
 
 #cProfile.run('main()')
 main()
-
-from os import _exit
-_exit(0)
